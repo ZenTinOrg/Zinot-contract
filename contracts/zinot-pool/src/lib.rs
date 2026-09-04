@@ -9,6 +9,9 @@ use soroban_sdk::{contract, contractimpl, Address, Env, token};
 mod storage;
 mod error;
 mod risk;
+mod events;
+mod liquidation;
+mod metadata;
 
 use storage::Storage;
 
