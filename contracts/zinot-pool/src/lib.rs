@@ -4,60 +4,149 @@
 //! It manages deposits, borrows, and collateral for USDC and XLM.
 
 #![no_std]
-use soroban_sdk::{contract, contractimpl, Address, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env, token};
 
 mod storage;
+use storage::Storage;
 
 #[contract]
 pub struct ZinotPool;
 
 #[contractimpl]
 impl ZinotPool {
+    /// Initialize the pool with an admin address
+    pub fn init(env: Env, admin: Address) {
+        if Storage::get_admin(&env).is_some() {
+            panic!("Pool already initialized");
+        }
+        Storage::set_admin(&env, &admin);
+    }
+
     /// Supply assets to the pool to earn interest.
-    ///
-    /// Logic:
-    /// 1. Transfer the asset from the supplier to the contract.
-    /// 2. Update the supplier's balance in storage.
-    /// 3. Update the total pool liquidity.
-    /// 4. (Optional) Mint interest-bearing tokens if we want a tokenized position.
-    pub fn supply(_env: Env, supplier: Address, _asset: Address, _amount: i128) {
+    pub fn supply(env: Env, supplier: Address, asset: Address, amount: i128) {
         supplier.require_auth();
-        // TODO: Implementation for open-source contributors
+
+        if amount <= 0 {
+            panic!("Supply amount must be positive");
+        }
+
+        // Transfer tokens from supplier to contract
+        let token = token::Client::new(&env, &asset);
+        token.transfer(&supplier, &env.current_contract_address(), &amount);
+
+        // Update supplier balance
+        let current_balance = Storage::get_balance(&env, &supplier, &asset);
+        Storage::set_balance(&env, &supplier, &asset, current_balance + amount);
+
+        // Update total liquidity
+        let total = Storage::get_total_liquidity(&env, &asset);
+        Storage::set_total_liquidity(&env, &asset, total + amount);
     }
 
     /// Borrow assets from the pool using supplied assets as collateral.
-    ///
-    /// Logic:
-    /// 1. Check if the borrower has enough collateral.
-    /// 2. Calculate the borrow limit based on the collateral factor (e.g., 75%).
-    /// 3. Ensure the borrow doesn't exceed the limit.
-    /// 4. Update the borrower's debt and the pool's available liquidity.
-    /// 5. Transfer the asset to the borrower.
-    pub fn borrow(_env: Env, borrower: Address, _asset: Address, _amount: i128) {
+    pub fn borrow(env: Env, borrower: Address, borrow_asset: Address, borrow_amount: i128) {
         borrower.require_auth();
-        // TODO: Implementation for open-source contributors
+
+        if borrow_amount <= 0 {
+            panic!("Borrow amount must be positive");
+        }
+
+        // Check available liquidity
+        let available = Storage::get_total_liquidity(&env, &borrow_asset);
+        if borrow_amount > available {
+            panic!("Insufficient pool liquidity");
+        }
+
+        // Check collateral (for simplicity, assume USDC and XLM, with USDC as collateral)
+        let collateral_balance = Storage::get_balance(&env, &borrower, &borrow_asset);
+        let collateral_factor = Storage::get_collateral_factor(&env, &borrow_asset);
+        let max_borrow = (collateral_balance * collateral_factor as i128) / 100;
+
+        let current_debt = Storage::get_debt(&env, &borrower, &borrow_asset);
+        if current_debt + borrow_amount > max_borrow {
+            panic!("Insufficient collateral for borrow");
+        }
+
+        // Update debt
+        Storage::set_debt(&env, &borrower, &borrow_asset, current_debt + borrow_amount);
+
+        // Update total borrowed
+        let total_borrowed = Storage::get_total_borrowed(&env, &borrow_asset);
+        Storage::set_total_borrowed(&env, &borrow_asset, total_borrowed + borrow_amount);
+
+        // Transfer to borrower
+        let token = token::Client::new(&env, &borrow_asset);
+        token.transfer(&env.current_contract_address(), &borrower, &borrow_amount);
     }
 
     /// Repay borrowed assets.
-    ///
-    /// Logic:
-    /// 1. Transfer the asset from the borrower back to the contract.
-    /// 2. Update the borrower's debt balance.
-    /// 3. Update pool statistics.
-    pub fn repay(_env: Env, borrower: Address, _asset: Address, _amount: i128) {
+    pub fn repay(env: Env, borrower: Address, asset: Address, repay_amount: i128) {
         borrower.require_auth();
-        // TODO: Implementation for open-source contributors
+
+        if repay_amount <= 0 {
+            panic!("Repay amount must be positive");
+        }
+
+        let current_debt = Storage::get_debt(&env, &borrower, &asset);
+        if repay_amount > current_debt {
+            panic!("Repay amount exceeds debt");
+        }
+
+        // Transfer tokens from borrower to contract
+        let token = token::Client::new(&env, &asset);
+        token.transfer(&borrower, &env.current_contract_address(), &repay_amount);
+
+        // Update debt
+        Storage::set_debt(&env, &borrower, &asset, current_debt - repay_amount);
+
+        // Update total borrowed
+        let total_borrowed = Storage::get_total_borrowed(&env, &asset);
+        Storage::set_total_borrowed(&env, &asset, total_borrowed - repay_amount);
     }
 
     /// Withdraw supplied assets.
-    ///
-    /// Logic:
-    /// 1. Ensure the user has enough balance.
-    /// 2. Check if the withdrawal would make the user's borrows underwater (Health Factor < 1).
-    /// 3. Update balances and transfer assets to the user.
-    pub fn withdraw(_env: Env, supplier: Address, _asset: Address, _amount: i128) {
+    pub fn withdraw(env: Env, supplier: Address, asset: Address, withdraw_amount: i128) {
         supplier.require_auth();
-        // TODO: Implementation for open-source contributors
+
+        if withdraw_amount <= 0 {
+            panic!("Withdraw amount must be positive");
+        }
+
+        let balance = Storage::get_balance(&env, &supplier, &asset);
+        if withdraw_amount > balance {
+            panic!("Insufficient balance to withdraw");
+        }
+
+        // Update balance
+        Storage::set_balance(&env, &supplier, &asset, balance - withdraw_amount);
+
+        // Update total liquidity
+        let total = Storage::get_total_liquidity(&env, &asset);
+        Storage::set_total_liquidity(&env, &asset, total - withdraw_amount);
+
+        // Transfer to supplier
+        let token = token::Client::new(&env, &asset);
+        token.transfer(&env.current_contract_address(), &supplier, &withdraw_amount);
+    }
+
+    /// Get user balance for an asset
+    pub fn get_balance(env: Env, user: Address, asset: Address) -> i128 {
+        Storage::get_balance(&env, &user, &asset)
+    }
+
+    /// Get user debt for an asset
+    pub fn get_debt(env: Env, user: Address, asset: Address) -> i128 {
+        Storage::get_debt(&env, &user, &asset)
+    }
+
+    /// Get total liquidity in pool for an asset
+    pub fn get_total_liquidity(env: Env, asset: Address) -> i128 {
+        Storage::get_total_liquidity(&env, &asset)
+    }
+
+    /// Get total borrowed from pool for an asset
+    pub fn get_total_borrowed(env: Env, asset: Address) -> i128 {
+        Storage::get_total_borrowed(&env, &asset)
     }
 }
 
