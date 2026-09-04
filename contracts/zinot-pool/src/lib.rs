@@ -7,6 +7,9 @@
 use soroban_sdk::{contract, contractimpl, Address, Env, token};
 
 mod storage;
+mod error;
+mod risk;
+
 use storage::Storage;
 
 #[contract]
