@@ -18,6 +18,7 @@ mod interest;
 mod validation;
 mod stats;
 mod types;
+mod constants;
 
 use storage::Storage;
 
