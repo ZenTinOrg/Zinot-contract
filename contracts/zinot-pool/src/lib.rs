@@ -15,6 +15,8 @@ mod metadata;
 mod utils;
 mod admin;
 mod interest;
+mod validation;
+mod stats;
 
 use storage::Storage;
 
