@@ -20,6 +20,8 @@ mod stats;
 mod types;
 mod constants;
 mod view;
+mod fees;
+mod assets;
 
 use storage::Storage;
 
