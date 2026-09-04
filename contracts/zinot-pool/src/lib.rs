@@ -12,6 +12,7 @@ mod risk;
 mod events;
 mod liquidation;
 mod metadata;
+mod utils;
 
 use storage::Storage;
 
