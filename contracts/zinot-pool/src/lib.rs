@@ -13,6 +13,8 @@ mod events;
 mod liquidation;
 mod metadata;
 mod utils;
+mod admin;
+mod interest;
 
 use storage::Storage;
 
