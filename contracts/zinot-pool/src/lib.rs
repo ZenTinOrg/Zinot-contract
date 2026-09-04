@@ -19,6 +19,7 @@ mod validation;
 mod stats;
 mod types;
 mod constants;
+mod view;
 
 use storage::Storage;
 
