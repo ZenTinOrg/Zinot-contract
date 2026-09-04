@@ -27,6 +27,8 @@ mod batch;
 mod emergency;
 mod oracle;
 mod accrual;
+mod flashloan;
+mod monitoring;
 
 use storage::Storage;
 
