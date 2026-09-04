@@ -23,6 +23,8 @@ mod view;
 mod fees;
 mod assets;
 mod helpers;
+mod batch;
+mod emergency;
 
 use storage::Storage;
 
