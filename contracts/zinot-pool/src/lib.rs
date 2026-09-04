@@ -17,6 +17,7 @@ mod admin;
 mod interest;
 mod validation;
 mod stats;
+mod types;
 
 use storage::Storage;
 
